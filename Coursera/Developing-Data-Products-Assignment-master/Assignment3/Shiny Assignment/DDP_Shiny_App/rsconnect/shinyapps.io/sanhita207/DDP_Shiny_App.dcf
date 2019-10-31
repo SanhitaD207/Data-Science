@@ -1,0 +1,12 @@
+name: DDP_Shiny_App
+title: DDP_Shiny_App
+username:
+account: sanhita207
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 1072037
+bundleId: 2297293
+url: https://sanhita207.shinyapps.io/DDP_Shiny_App/
+when: 1565154069.50532
+asMultiple: FALSE
+asStatic: FALSE
