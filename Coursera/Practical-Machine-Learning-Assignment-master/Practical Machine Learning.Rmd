@@ -1,0 +1,153 @@
+---
+title: "Practical Machine Learning Assignment"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+In this assignment, data from the [Human Activity Recognition](http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har) is used in machine learning using a random forest model. The model is derived from a training set, which is further split into two subsets used for training and for k-fold cross validation. Then the model is applied to a test set of 20 samples and correctly predicts the outcome variable.
+
+## Getting and Cleaning Data
+First, the necessary libraries for the assignment are loaded and a seed is set for reproducibility.
+
+```{r, message=FALSE}
+library(lattice)
+library(ggplot2)
+library(foreach)
+library(iterators)
+library(caret)
+library(rattle)
+library(dplyr)
+library(parallel)
+library(doParallel)
+library(pryr)
+set.seed(1235)
+```
+
+The data is loaded and some exploratory analysis is done by looking at the dimensions of the data. 
+
+```{r }
+train <- read.csv("pml-training.csv", na.strings=c("NA"))
+test <- read.csv("pml-testing.csv", na.strings=c("NA"))
+dim(train)
+dim(test)
+```
+
+## Clean the data
+
+Check if in the observations are present NA values or missing OBS that can raise errors/bias during the model training.
+
+```{r}
+sum(complete.cases(train))
+```
+
+Too few observation to have a correct training.
+
+### Eliminate the columns with NA/missing values
+
+Let's see colnames
+
+```{r}
+colnames(train)
+plot(colMeans(is.na(train)))
+```
+
+There are columns with a lot of missing values.
+
+We will reatain only the columns without NA values
+
+First covert all the data in NUMERIC form to coerce the empty factor to NA
+
+```{r}
+trainClasse = train$classe
+trainRaw = train[, sapply(train, is.numeric)]
+testRaw = test[, sapply(test, is.numeric)]
+```
+
+Remove columns with NA values
+
+```{r}
+trainFilter <- trainRaw[, colSums(is.na(trainRaw)) == 0]
+# Attach Classe variable
+trainFilter$classe = trainClasse
+testFilter <- testRaw[, colSums(is.na(testRaw)) == 0]
+```
+
+Dimension
+
+```{r}
+dim(trainFilter)
+dim(testFilter)
+```
+
+Removing other unuseful columns like username, timestamp and ID
+
+```{r}
+unwanted = !grepl("X|timestamp", colnames(trainFilter))
+cols = colnames(trainFilter)[unwanted]
+trainFilter = trainFilter %>%
+  select(cols)
+unwanted = !grepl("X|timestamp", colnames(testFilter))
+cols = colnames(testFilter)[unwanted]
+testFilter = testFilter %>%
+  select(cols)
+```
+
+Get dimension of the filtered dataset
+
+```{r}
+dim(trainFilter)
+dim(testFilter)
+```
+
+## Slice the data
+
+We will slice the Training data into **Training** and **Validation** set using the 80-20 rule.
+
+```{r}
+set.seed(1202435) 
+inTrain <- createDataPartition(trainFilter$classe, p=0.70, list=F)
+trainData <- trainFilter[inTrain, ]
+validationData <- trainFilter[-inTrain, ]
+dim(trainData)
+```
+
+# Data modeling
+
+We will fit a model using **Random Forest** for several reasons:
+
+1. With tree-based models, **you can safely ignore** predictors correlation issues
+
+2. Zero- and Near Zero-Variance Predictors **does not** imply on tree-based models
+
+3. As each feature is processed separately, and the possible splits of the data don’t depend on scaling, no preprocessing like normalization or standardization of features is needed for decision tree algorithms.
+
+## Random forest Model
+
+```{r}
+controlRf <- trainControl(method="cv", 5, allowParallel = TRUE)
+modelRf <- train(classe ~ ., data=trainData, method="rf", trControl=controlRf, ntree=250)
+modelRf
+```
+
+### Performance of the model on the validation data set
+
+```{r}
+predict_rf <- predict(modelRf, validationData)
+confusionMatrix(validationData$classe, predict_rf)
+```
+
+Very accurate model to classify **classe** feature
+
+
+# Predict Test data with RF
+
+```{r}
+resultRf <- predict(modelRf, testFilter[, -length(names(testFilter))])
+resultRf
+```
+
+
+Finally the model predict the TEST data in the same way
